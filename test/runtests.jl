@@ -3,7 +3,7 @@ using LocalPackageServer: fetch, GitStorageServer, Config
 
 const TEST_GITCONFIG = Dict(
     "user.name" => "LocalRegistryTests",
-    "user.email" => "localregistrytests@example.com",
+    "user.email" => "localregistrytests@example.com"
 )
 
 # Hook into the LocalRegistry testing infrastructure.

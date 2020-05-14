@@ -59,9 +59,7 @@ pkg"registry add UUID"
 ```
 where `UUID` is the UUID of your local registry.
 
-When https://github.com/JuliaLang/Pkg.jl/pull/1804 has been merged and
-included in Julia (hopefully for Julia 1.5), you don't need to specify
-the UUID,
+For Julia 1.5 you won't need to specify the UUID;
 ```
 using Pkg
 pkg"registry add"
@@ -85,7 +83,7 @@ min_time_between_registry_updates = 60
 Then you configure this as a storage server for
 [PkgServer](https://github.com/JuliaPackaging/PkgServer.jl). Adding
 your local registry is done as above after you have pointed
-"JULIA_PKG_SERVER" to your PkgServer instance.
+`JULIA_PKG_SERVER` to your PkgServer instance.
 
 ## Configuration Variables
 * `host`: The host name the server will listen to.

@@ -73,8 +73,9 @@ function get_resource_from_storage_server!(config, server::GitStorageServer,
         @info "Unknown resource $(parts[1])"
         return false
     end
-    
-    tar = read(`$git archive $(hash)`)
+
+    # Do not allow git on windows to convert line endings in the tarball.
+    tar = read(`$git -c core.autocrlf=false archive $(hash)`)
     gzip = transcode(GzipCompressor, tar)
     write(io, gzip)
     close(io)

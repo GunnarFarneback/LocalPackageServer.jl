@@ -58,11 +58,17 @@ function get_resource_from_storage_server!(config, server::GitStorageServer,
             run(`$git clone --mirror $(repo) .`)
         else
             # If hash is not available, update git repo.
-            if isempty(read(`$git rev-parse --verify --quiet $(hash)`))
+            try
+                run(`$git rev-parse --verify --quiet $(hash)^\{tree\}`)
+            catch
+                @info "Hash not available, updating from remote" repo=repo hash=hash Dates.now()
                 run(`$git remote update`)
             end
             # Still not there? Nothing to do about it.
-            if isempty(read(`$git rev-parse --verify --quiet $(hash)`))
+            try
+                run(`$git rev-parse --verify --quiet $(hash)^\{tree\}`)
+            catch
+                @error "Hash still not available after remote update" repo=repo hash=hash Dates.now()
                 close(io)
                 return false
             end

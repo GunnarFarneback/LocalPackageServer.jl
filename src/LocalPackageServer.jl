@@ -10,6 +10,7 @@ See the package's `README.md` for more information.
 module LocalPackageServer
 
 using Pkg
+using Dates
 using HTTP
 using Random
 using Tar
@@ -30,10 +31,10 @@ function start(config::Config)
     host = config.host
     port = config.port
     mkpath(config.cache_dir)
-    @info "server listening on $(host):$(port)"
+    @info "server listening on $(host):$(port)" Dates.now()
     HTTP.listen(host, port) do http
         resource = http.message.target
-        @show "start" resource
+        @info "resource requested" resource Dates.now()
         # If the user is asking for `/meta`, generate the
         # requisite JSON object and send it back.
         if occursin(meta_re, resource)

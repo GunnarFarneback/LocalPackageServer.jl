@@ -53,6 +53,7 @@ function get_resource_from_storage_server!(config, server::GitStorageServer,
         local_package_dir = get_local_package_dir(config, uuid)
         git = gitcmd(config, local_package_dir)
         if !isdir(local_package_dir)
+            @info "Cloning package" repo=repo Dates.now()
             mkpath(local_package_dir)
             run(`$git clone --mirror $(repo) .`)
         else
@@ -67,10 +68,10 @@ function get_resource_from_storage_server!(config, server::GitStorageServer,
             end
         end
     elseif parts[1] == "artifact"
-        @info "No support for artifacts"
+        @info "No support for artifacts" Dates.now()
         return false
     else
-        @info "Unknown resource $(parts[1])"
+        @info "Unknown resource $(parts[1])" Dates.now()
         return false
     end
 

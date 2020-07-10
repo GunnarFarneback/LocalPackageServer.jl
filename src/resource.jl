@@ -21,7 +21,7 @@ function get_registries(config, server::PkgStorageServer)
             uuid, hash = m.captures
             regs[uuid] = hash
         else
-            @error "invalid response" server=server.url resource="/registries" line=line
+            @error "invalid response" server=server.url resource="/registries" line=line Dates.now()
         end
     end
     return regs
@@ -104,7 +104,7 @@ function fetch(config::Config, resource::AbstractString)
         end
     end
     success = isfile(path)
-    success || @warn "download failed" resource=resource
+    success || @warn "download failed" resource=resource  Dates.now()
     return success ? path : nothing
 end
 
@@ -122,7 +122,7 @@ end
 
 function download(config, server::StorageServer, resource::AbstractString,
                   path::AbstractString)
-    @info "downloading resource" server=server resource=resource
+    @info "downloading resource" server=server resource=resource Dates.now()
     hash = let m = match(hash_part_re, resource)
         m !== nothing ? m.captures[1] : nothing
     end
@@ -137,7 +137,7 @@ function download(config, server::StorageServer, resource::AbstractString,
             tree_hash = tarball_git_hash(temp_file)
             # Raise warnings about resource hash mismatches
             if hash != tree_hash
-                @warn "resource hash mismatch" server=server resource=resource hash=tree_hash
+                @warn "resource hash mismatch" server=server resource=resource hash=tree_hash Dates.now()
                 return false
             end
         end
@@ -154,7 +154,7 @@ function get_resource_from_storage_server!(config, server::PkgStorageServer,
 
     # Raise warnings about bad HTTP response codes
     if response.status != 200
-        @warn "response status $(response.status)"
+        @warn "response status $(response.status)" Dates.now()
         return false
     end
 

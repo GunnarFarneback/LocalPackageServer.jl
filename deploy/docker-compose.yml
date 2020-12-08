@@ -1,0 +1,17 @@
+version: "3.3"
+services:
+  pkgserver:
+    build: ..
+    ports:
+      - "${SERVER_PORT}:8000"
+    volumes:
+      - storage:/app/storage
+    environment:
+      - MIN_TIME_BETWEEN_REGISTRY_UPDATES
+      - JULIA_PKG_SERVER
+      - JULIA_LOCAL_REGISTRY
+      - GIT_USER
+      - GIT_PASSWORD
+
+volumes:
+  storage:

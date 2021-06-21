@@ -51,7 +51,7 @@ mktempdir(@__DIR__) do test_dir
     prepare_package(packages_dir, "FirstTest1.toml")
     first_test_dir = joinpath(packages_dir, "FirstTest")
     first_test_url = "file://$(first_test_dir)"
-    register(first_test_dir, registry_dir,
+    register(first_test_dir, registry = registry_dir,
              repo = first_test_url, 
              gitconfig = TEST_GITCONFIG, push = true)
     first_test_uuid = "d7508571-2240-4c50-b21c-240e414cc6d2"

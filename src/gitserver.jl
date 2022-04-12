@@ -55,7 +55,13 @@ function get_resource_from_storage_server!(config, server::GitStorageServer,
         if !isdir(local_package_dir)
             @info "Cloning package" repo=repo Dates.now()
             mkpath(local_package_dir)
-            run(`$git clone --mirror $(repo) .`)
+            try
+                run(`$git clone --mirror $(repo) .`)
+            catch e
+                @info "Failed to clone $(repo)."
+                rm(local_package_dir, recursive = true)
+                rethrow(e)
+            end
         else
             # If hash is not available, update git repo.
             try

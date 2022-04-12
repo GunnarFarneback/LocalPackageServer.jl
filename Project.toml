@@ -1,7 +1,7 @@
 name = "LocalPackageServer"
 uuid = "5ed2caf0-0e3c-46c8-ab7c-f67841b915e6"
 authors = ["Gunnar Farnebäck <gunnar@lysator.liu.se>"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
@@ -16,7 +16,7 @@ Tar = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 CodecZlib = "0.7"
 HTTP = "0.8, 0.9"
 Inflate = "0.1"
-LocalRegistry = "0.4"
+LocalRegistry = "0.4, 0.5"
 RegistryTools = "1.2"
 Tar = "1.4"
 julia = "1.4"

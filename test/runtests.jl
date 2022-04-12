@@ -52,7 +52,7 @@ mktempdir(@__DIR__) do test_dir
     first_test_dir = joinpath(packages_dir, "FirstTest")
     first_test_url = "file://$(first_test_dir)"
     register(first_test_dir, registry = registry_dir,
-             repo = first_test_url, 
+             repo = first_test_url,
              gitconfig = TEST_GITCONFIG, push = true)
     first_test_uuid = "d7508571-2240-4c50-b21c-240e414cc6d2"
 
@@ -79,4 +79,34 @@ mktempdir(@__DIR__) do test_dir
     @test haskey(meta, "pkgserver_version")
     @test meta["packages_cached"] == 1
     @test meta["artifacts_cached"] == 0
+
+    # Issue #3.
+    # Create another test package and register it with a broken repo url.
+    prepare_package(packages_dir, "Images1.toml")
+    images_dir = joinpath(packages_dir, "Images")
+    images_url = "file://$(images_dir)broken"
+    register(images_dir, registry = registry_dir,
+             repo = images_url,
+             gitconfig = TEST_GITCONFIG, push = true)
+    images_uuid = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
+    # Verify that the package resource is NOT available.
+    git = gitcmd(images_dir, TEST_GITCONFIG)
+    hash = readchomp(`$git rev-parse --verify HEAD:`)
+    @test_throws ProcessFailedException fetch(config, "/package/$(images_uuid)/$(hash)")
+    dir = joinpath(test_dir, "data", "packages", images_uuid)
+    @test !isdir(dir)
+    # Fix the URL and verify that the package resource IS available.
+    prepare_package(packages_dir, "Images2.toml")
+    images_url = "file://$(images_dir)"
+    register(images_dir, registry = registry_dir,
+             repo = images_url,
+             gitconfig = TEST_GITCONFIG, push = true)
+    git = gitcmd(images_dir, TEST_GITCONFIG)
+    hash = readchomp(`$git rev-parse --verify HEAD:`)
+    path = fetch(config, "/package/$(images_uuid)/$(hash)")
+    @test isfile(path)
+    dir = joinpath(test_dir, "data", "packages", images_uuid)
+    @test isdir(dir)
+    git = gitcmd(dir, TEST_GITCONFIG)
+    @test readchomp(`$git rev-parse --verify HEAD:`) == hash
 end

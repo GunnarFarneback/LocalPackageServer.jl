@@ -164,7 +164,7 @@ end
 function serve_file(http::HTTP.Stream, path::String)
     HTTP.setheader(http, "Content-Length" => string(filesize(path)))
     # We assume that everything we send is gzip-compressed (since they're all tarballs)
-    HTTP.setheader(http, "Content-Encoding" => "gzip")
+    HTTP.setheader(http, "Content-Type" => "application/octet-stream")
     startwrite(http)
 
     # Open the path, write it out directly to the HTTP stream

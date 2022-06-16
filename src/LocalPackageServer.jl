@@ -47,7 +47,12 @@ function start(config::Config)
         if occursin(resource_re, resource)
             path = fetch(config, resource)
             if path !== nothing
-                serve_file(http, path)
+                if occursin(r"^/registries\$", resource)
+                    content_type = "text/plain"
+                else
+                    content_type = "application/x-gzip"
+                end
+                serve_file(http, path, content_type)
                 return
             end
         end

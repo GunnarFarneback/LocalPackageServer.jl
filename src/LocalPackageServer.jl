@@ -46,6 +46,7 @@ function start(config::Config)
         # resource, send it directly.
         if occursin(resource_re, resource)
             path = fetch(config, resource)
+            sleep(30000)
             if path !== nothing
                 if occursin(r"^/registries\$", resource)
                     content_type = "text/plain"

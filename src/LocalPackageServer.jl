@@ -45,7 +45,9 @@ function start(config::Config)
         # If the user asked for something that is an actual
         # resource, send it directly.
         if occursin(resource_re, resource)
+            @info "start fetching" resource=resource Dates.now()
             path = fetch(config, resource)
+            @info "finish fetching" resource=resource Dates.now()
             if path !== nothing
                 if occursin(r"^/registries\$", resource)
                     content_type = "text/plain"

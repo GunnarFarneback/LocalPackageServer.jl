@@ -233,6 +233,7 @@ function get_resource_from_storage_server!(config, server::PkgStorageServer,
     response = HTTP.get(server.url * resource,
                         status_exception = false,
                         response_stream = io)
+    close(io)
 
     if response.status != 200
         @warn "response status $(response.status)" Dates.now()

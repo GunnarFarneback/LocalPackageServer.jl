@@ -1,10 +1,27 @@
 using LocalPackageServer, LocalRegistry, Pkg, Test, Inflate
-using LocalPackageServer: fetch, GitStorageServer, Config
+using LocalPackageServer: fetch_resource, cache_path, tempfilename
+using LocalPackageServer: update_registries, ContentState
+using LocalPackageServer: GitStorageServer, Config
 
 const TEST_GITCONFIG = Dict(
     "user.name" => "LocalRegistryTests",
     "user.email" => "localregistrytests@example.com"
 )
+
+# Simplified version of cached_fetch_resource which always returns the
+# cached filename.
+function fetch_test(config, resource)
+    resource == "/registries" && update_registries(config)
+    path = cache_path(config, resource)
+    temp_file = tempfilename(path)
+    isfile(path) && return path
+    mkpath(dirname(path))
+    open(temp_file, "w") do io
+        fetch_resource(config, resource, io, ContentState())
+    end
+    mv(temp_file, path, force = true)
+    return path
+end
 
 # Hook into the LocalRegistry testing infrastructure.
 include(joinpath(dirname(dirname(pathof(LocalRegistry))), "test", "utils.jl"))
@@ -36,14 +53,14 @@ mktempdir(@__DIR__) do test_dir
     mkpath(config.cache_dir)
 
     # We won't actually run this server, but test its backend
-    # functions, specifically through `fetch`.
-    path = fetch(config, "/registries")
+    # functions, specifically through `fetch_test`.
+    path = fetch_test(config, "/registries")
     @test isfile(path)
     registry_git = gitcmd(registry_dir, TEST_GITCONFIG)
     hash = readchomp(`$(registry_git) rev-parse --verify HEAD:`)
     initial_registry_resource = readchomp(path)
     @test initial_registry_resource == "/registry/$(registry_uuid)/$(hash)"
-    path = fetch(config, initial_registry_resource)
+    path = fetch_test(config, initial_registry_resource)
     @test isfile(path)
     @test startswith(inflate_gzip(path), "Registry.toml")
 
@@ -57,16 +74,16 @@ mktempdir(@__DIR__) do test_dir
     first_test_uuid = "d7508571-2240-4c50-b21c-240e414cc6d2"
 
     # This should now give a different hash for the registry.
-    path = fetch(config, "/registries")
+    path = fetch_test(config, "/registries")
     @test isfile(path)
     @test readchomp(path) != initial_registry_resource
-    path = fetch(config, readchomp(path))
+    path = fetch_test(config, readchomp(path))
     @test isfile(path)
 
     # Verify that the package resource is available.
     git = gitcmd(first_test_dir, TEST_GITCONFIG)
     hash = readchomp(`$git rev-parse --verify HEAD:`)
-    path = fetch(config, "/package/$(first_test_uuid)/$(hash)")
+    path = fetch_test(config, "/package/$(first_test_uuid)/$(hash)")
     @test isfile(path)
     dir = joinpath(test_dir, "data", "packages", first_test_uuid)
     @test isdir(dir)
@@ -92,7 +109,7 @@ mktempdir(@__DIR__) do test_dir
     # Verify that the package resource is NOT available.
     git = gitcmd(images_dir, TEST_GITCONFIG)
     hash = readchomp(`$git rev-parse --verify HEAD:`)
-    @test_throws ProcessFailedException fetch(config, "/package/$(images_uuid)/$(hash)")
+    @test_throws ProcessFailedException fetch_test(config, "/package/$(images_uuid)/$(hash)")
     dir = joinpath(test_dir, "data", "packages", images_uuid)
     @test !isdir(dir)
     # Fix the URL and verify that the package resource IS available.
@@ -103,7 +120,7 @@ mktempdir(@__DIR__) do test_dir
              gitconfig = TEST_GITCONFIG, push = true)
     git = gitcmd(images_dir, TEST_GITCONFIG)
     hash = readchomp(`$git rev-parse --verify HEAD:`)
-    path = fetch(config, "/package/$(images_uuid)/$(hash)")
+    path = fetch_test(config, "/package/$(images_uuid)/$(hash)")
     @test isfile(path)
     dir = joinpath(test_dir, "data", "packages", images_uuid)
     @test isdir(dir)

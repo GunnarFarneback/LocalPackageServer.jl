@@ -33,7 +33,12 @@ function get_registries(config, server::GitStorageServer)
 end
 
 function get_resource_from_storage_server!(config, server::GitStorageServer,
-                                           resource, io)
+                                           resource, io, content::ContentState)
+    # Need to be conservative and update the registry in case
+    # something has changed. New packages may have appeared or an
+    # existing package could have a new URL.
+    get_registries(config, server)
+
     parts = split(resource, "/", keepempty = false)
     registry_dir = get_local_registry_dir(config)
     if parts[1] == "registry"
@@ -90,6 +95,7 @@ function get_resource_from_storage_server!(config, server::GitStorageServer,
     # Do not allow git on windows to convert line endings in the tarball.
     tar = read(`$git -c core.autocrlf=false archive $(hash)`)
     gzip = transcode(GzipCompressor, tar)
+    content.length = length(gzip)
     write(io, gzip)
     close(io)
     return true

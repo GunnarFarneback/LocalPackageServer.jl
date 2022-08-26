@@ -28,6 +28,8 @@ end
 start(config) = start(Config(config))
 
 function start(config::Config)
+    isempty(config.storage_servers) && throw(@error "No storage servers are configured." resource=resource)
+
     host = config.host
     port = config.port
     mkpath(config.cache_dir)
@@ -45,14 +47,13 @@ function start(config::Config)
         # If the user asked for something that is an actual
         # resource, send it directly.
         if occursin(resource_re, resource)
-            path = fetch(config, resource)
-            if path !== nothing
-                if occursin(r"^/registries\$", resource)
-                    content_type = "text/plain"
-                else
-                    content_type = "application/x-gzip"
-                end
-                serve_file(http, path, content_type)
+            path = cached_fetch_resource(config, resource)
+            if occursin(r"^/registries\$", resource)
+                content_type = "text/plain"
+            else
+                content_type = "application/x-gzip"
+            end
+            if serve_file(http, path, content_type)
                 return
             end
         end

@@ -27,6 +27,8 @@ function get_registries(config, server::PkgStorageServer)
     return regs
 end
 
+cache_path(config, resource) = config.cache_dir * resource
+tempfilename(path) = path * ".inprogress"
 
 """
     write_atomic(f::Function, path::String)
@@ -38,7 +40,7 @@ Currently stages changes at "<path>.tmp.<randstring>".  If the return value
 of `f()` is `false` or an exception is raised, the write will be aborted.
 """
 function write_atomic(f::Function, path::String)
-    temp_file = path * ".tmp." * randstring()
+    temp_file = tempfilename(path)
     try
         retval = open(temp_file, "w") do io
             f(temp_file, io)
@@ -48,8 +50,11 @@ function write_atomic(f::Function, path::String)
         end
         return retval
     catch e
-        rm(temp_file; force=true)
         rethrow(e)
+    finally
+        if isfile(temp_file)
+            rm(temp_file; force=true)
+        end
     end
 end
 
@@ -89,23 +94,82 @@ function update_registries(config)
     return
 end
 
-function fetch(config::Config, resource::AbstractString)
-    resource == "/registries" && update_registries(config)
-    path = config.cache_dir * resource
-    isfile(path) && return path
-    update_registries(config)
-    servers = config.storage_servers
-    isempty(servers) && throw(@error "fetch called with no servers" resource=resource)
+mutable struct ContentState
+    length::Int
+end
+ContentState() = ContentState(-1)
 
-    mkpath(dirname(path))
+struct FetchState
+    resource::String
+    content::ContentState
+    task::Task
+end
+
+struct FetchInProgress
+    state::FetchState
+    io::IOStream
+end
+
+const fetch_lock = ReentrantLock()
+const fetches_in_progress = Dict{String, FetchState}()
+# If this resource is already available as file in the cache, return
+# the filename. Otherwise return a `FetchInProgress` object.
+#
+# The idea is that `serve_file` will dispatch to regular file serving
+# or a streaming serve of the ongoing fetch depending on what is
+# returned from this function.
+#
+# To avoid race conditions, we keep a list of ongoing fetches, which
+# can only be read or updated while holding a lock.
+#
+# This function also implements the `atomic_write` strategy of first
+# writing to a temporary file, then renaming it after it's complete.
+function cached_fetch_resource(config::Config, resource::AbstractString)
+    # The `/registries` resource is special since it needs to be
+    # updated periodically.
+    resource == "/registries" && update_registries(config)
+    path = cache_path(config, resource)
+    isfile(path) && return path
+    return lock(fetch_lock) do
+        temp_file = tempfilename(path)
+        state = get!(fetches_in_progress, resource) do
+            mkpath(dirname(temp_file))
+            io = open(temp_file, "w")
+            content = ContentState()
+            task = @async begin
+                success = fetch_resource(config, resource, io, content)
+                close(io)
+                # Note: This lock call is not nested within the outer
+                # lock call but happens in a separate task.
+                lock(fetch_lock) do
+                    if success
+                        mkpath(dirname(path))
+                        mv(temp_file, path, force = true)
+                    end
+                    delete!(fetches_in_progress, resource)
+                end
+            end
+            # Return from do block, not from function.
+            return FetchState(resource, content, task)
+        end
+        # Return from do block, not from function.
+        return FetchInProgress(state, open(temp_file, "r"))
+    end
+end
+
+function fetch_resource(config::Config, resource::AbstractString, io::IOStream,
+                        content::ContentState)
+    servers = config.storage_servers
     for server in servers
-        if download(config, server, resource, path)
+        if download(config, server, resource, io, content)
+            return true
+        end
+        if content.length >= 0
             break
         end
     end
-    success = isfile(path)
-    success || @warn "download failed" resource=resource  Dates.now()
-    return success ? path : nothing
+    @warn "download failed" resource=resource  Dates.now()
+    return false
 end
 
 function tarball_git_hash(tarball::String)
@@ -121,38 +185,55 @@ function tarball_git_hash(tarball::String)
 end
 
 function download(config, server::StorageServer, resource::AbstractString,
-                  path::AbstractString)
+                  io::IOStream, content::ContentState)
     @info "downloading resource" server=server resource=resource Dates.now()
     hash = let m = match(hash_part_re, resource)
         m !== nothing ? m.captures[1] : nothing
     end
 
-    write_atomic(path) do temp_file, io
-        if !get_resource_from_storage_server!(config, server, resource, io)
+    if !get_resource_from_storage_server!(config, server, resource,
+                                          io, content)
+        return false
+    end
+
+    # If we're given a hash, then check tarball git hash.
+    if hash !== nothing
+        temp_file = tempfilename(cache_path(config, resource))
+        tree_hash = tarball_git_hash(temp_file)
+        # Raise warnings about resource hash mismatches
+        if hash != tree_hash
+            @warn "resource hash mismatch" server=server resource=resource hash=tree_hash Dates.now()
             return false
         end
-
-        # If we're given a hash, then check tarball git hash
-        if hash !== nothing
-            tree_hash = tarball_git_hash(temp_file)
-            # Raise warnings about resource hash mismatches
-            if hash != tree_hash
-                @warn "resource hash mismatch" server=server resource=resource hash=tree_hash Dates.now()
-                return false
-            end
-        end
-
-        return true
     end
+
+    return true
+end
+
+function content_length(response::HTTP.Messages.Response)
+    for h in response.headers
+        if lowercase(h[1]) == "content-length"
+            return parse(Int, h[2])
+        end
+    end
+    return nothing
 end
 
 function get_resource_from_storage_server!(config, server::PkgStorageServer,
-                                           resource, io)
-    response = HTTP.get(status_exception = false,
-                        response_stream = io,
-                        server.url * resource)
-
+                                           resource, io::IOStream,
+                                           content::ContentState)
+    response = HTTP.head(server.url * resource, status_exception = false)
     # Raise warnings about bad HTTP response codes
+    if response.status != 200
+        @warn "response status $(response.status)" Dates.now()
+        return false
+    end
+    content.length = content_length(response)
+
+    response = HTTP.get(server.url * resource,
+                        status_exception = false,
+                        response_stream = io)
+
     if response.status != 200
         @warn "response status $(response.status)" Dates.now()
         return false
@@ -166,6 +247,61 @@ function serve_file(http::HTTP.Stream, path::String, content_type::AbstractStrin
     HTTP.setheader(http, "Content-Type" => content_type)
     startwrite(http)
 
+    # Only write the headers for HEAD requests, not the file content.
+    http.message.method == "HEAD" && return true
+
     # Open the path, write it out directly to the HTTP stream
     open(io -> write(http, read(io, String)), path)
+    return true
+end
+
+function serve_file(http::HTTP.Stream, in_progress::FetchInProgress,
+                    content_type::AbstractString)
+    buffer = Vector{UInt8}(undef, 2 * 1024 * 1024)
+    transmitted = 0
+    length = typemax(Int)
+    while transmitted < length
+        n = readbytes!(in_progress.io, buffer)
+        if n == 0
+            if !istaskdone(in_progress.state.task)
+                sleep(0.001)
+            else
+                break
+            end
+        else
+            if transmitted == 0
+                length = in_progress.state.content.length
+                HTTP.setheader(http, "Content-Length" => string(length))
+                HTTP.setheader(http, "Content-Type" => content_type)
+                HTTP.startwrite(http)
+                # Only write the headers for HEAD requests, not the
+                # file content.
+                if http.message.method == "HEAD"
+                    return true
+                end
+            end
+            try
+                transmitted += write(http, view(buffer, 1:min(n, length - transmitted)))
+            catch e
+                # If the client disappears, just silently early-exit
+                if isa(e, Base.IOError) && e.code in (-Base.Libc.EPIPE, -Base.Libc.ECONNRESET)
+                    close(in_progress.io)
+                    return true
+                end
+                rethrow(e)
+            end
+        end
+    end
+
+    close(in_progress.io)
+
+    if in_progress.state.content.length < 0
+        return false
+    end
+
+    if transmitted < length
+        return false
+    end
+
+    return true
 end

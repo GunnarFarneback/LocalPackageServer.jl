@@ -173,15 +173,9 @@ function fetch_resource(config::Config, resource::AbstractString, io::IOStream,
 end
 
 function tarball_git_hash(tarball::String)
-    local tree_hash
-    mktempdir() do tmp_dir
-        open(tarball) do io
-            Tar.extract(GzipDecompressorStream(io), tmp_dir)
-        end
-        tree_hash = bytes2hex(Pkg.GitTools.tree_hash(tmp_dir))
-        chmod(tmp_dir, 0o777, recursive = true)
+    open(tarball) do io
+        Tar.tree_hash(GzipDecompressorStream(io))
     end
-    return tree_hash
 end
 
 function download(config, server::StorageServer, resource::AbstractString,

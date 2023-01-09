@@ -265,7 +265,7 @@ function serve_file(http::HTTP.Stream, in_progress::FetchInProgress,
         n = readbytes!(in_progress.io, buffer)
         if n == 0
             if !istaskdone(in_progress.state.task)
-                sleep(0.001)
+                sleep(0.1)
             else
                 break
             end

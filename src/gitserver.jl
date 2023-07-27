@@ -1,9 +1,13 @@
 using Pkg
 using CodecZlib
-import RegistryTools
 
 function gitcmd(config, path)
-    return RegistryTools.gitcmd(path, config.gitconfig)
+    cmd = ["git", "-C", path]
+    for (key, value) in config.gitconfig
+        push!(cmd, "-c")
+        push!(cmd, "$(key)=$(value)")
+    end
+    return Cmd(cmd)
 end
 
 function get_local_registry_dir(config)

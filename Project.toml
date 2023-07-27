@@ -9,7 +9,6 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-RegistryTools = "d1eb7eb1-105f-429d-abf5-b0f65cb9e2c4"
 Tar = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 
 [compat]
@@ -24,7 +23,8 @@ julia = "1.4"
 [extras]
 Inflate = "d25df0c9-e2be-5dd7-82c8-3ad0b3e990b9"
 LocalRegistry = "89398ba2-070a-4b16-a995-9893c55d93cf"
+RegistryTools = "d1eb7eb1-105f-429d-abf5-b0f65cb9e2c4"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "LocalRegistry", "Inflate"]
+test = ["Test", "LocalRegistry", "Inflate", "RegistryTools"]

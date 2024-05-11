@@ -15,7 +15,6 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.4' # Minimum Julia version.
           - '1.6' # Julia LTS version.
           - '1'   # Expands to latest 1.x.
           - 'nightly'

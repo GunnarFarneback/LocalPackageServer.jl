@@ -31,7 +31,7 @@ content is explained below.
 An example configuration file for running as a package server with
 a builtin storage server:
 ```
-host = "localhost"
+host = "127.0.0.1"
 port = "8000"
 local_registry = REGISTRY_URL
 pkg_server = "https://pkg.julialang.org"
@@ -72,7 +72,7 @@ registry has been previously added) it will be added automatically.
 The major difference to configuration as a Package Server is that
 `pkg_server` is omitted.
 ```
-host = "localhost"
+host = "127.0.0.1"
 port = "8080"
 local_registry = REGISTRY_URL
 cache_dir = "/tmp/cache"

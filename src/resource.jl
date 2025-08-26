@@ -131,13 +131,29 @@ function cached_fetch_resource(config::Config, resource::AbstractString)
     path = cache_path(config, resource)
     isfile(path) && return path
     return lock(fetch_lock) do
+        # The file may have been finished while we waited for the lock.
+        isfile(path) && return path
+
         temp_file = tempfilename(path)
+
+        # A little error recovery.
+        if !isfile(temp_file) && haskey(fetches_in_progress, resource)
+            delete!(fetches_in_progress, resource)
+        end
+
         state = get!(fetches_in_progress, resource) do
             mkpath(dirname(temp_file))
+            # Note: We need to open the file while we have fetch_lock,
+            # not in the spawned task.
             io = open(temp_file, "w")
             content = ContentState()
-            task = @async begin
-                success = fetch_resource(config, resource, io, content)
+            task = Threads.@spawn begin
+                success = false
+                try
+                    success = fetch_resource(config, resource, io, content)
+                catch e
+                    @info "fetch resource errored" error=e backtrace=stacktrace(catch_backtrace())
+                end
                 close(io)
                 # Note: This lock call is not nested within the outer
                 # lock call but happens in a separate task.
@@ -145,6 +161,8 @@ function cached_fetch_resource(config::Config, resource::AbstractString)
                     if success
                         mkpath(dirname(path))
                         mv(temp_file, path, force = true)
+                    else
+                        rm(temp_file, force = true)
                     end
                     delete!(fetches_in_progress, resource)
                 end

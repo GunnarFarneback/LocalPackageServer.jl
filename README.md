@@ -38,6 +38,7 @@ pkg_server = "https://pkg.julialang.org"
 cache_dir = "/tmp/cache"
 git_clones_dir = "/tmp/data"
 min_time_between_registry_updates = 60
+repository_clone_strategy = "on_failure"
 ```
 Replace `REGISTRY_URL` with the URL to your local registry (the same
 that you would use in a `registry add` command). If you want to use
@@ -52,14 +53,15 @@ this package server:
 $ JULIA_PKG_SERVER=http://localhost:8000 julia
 ```
 
-In order to add your registry through the package server, you need to do
+In order to add your registry through the package server, for Julia
+1.4 you need to do
 ```
 using Pkg
 pkg"registry add UUID"
 ```
 where `UUID` is the UUID of your local registry.
 
-For Julia 1.5 you won't need to specify the UUID;
+For Julia 1.5 and later you won't need to specify the UUID;
 ```
 using Pkg
 pkg"registry add"
@@ -99,6 +101,18 @@ your local registry is done as above after you have pointed
 * `min_time_between_registry_updates`: Minimum time in seconds before
   checking registries for updates. Updates are only triggered when
   either a package or a repository is requested.
+* `repository_clone_strategy`: Whether to clone or update registry
+  and package repositories when new versions are requested. Options:
+  * `"always"`: Clone every time. This is conservative but may be
+    unnecessarily slow.
+  * `"on_failure"`: Try to update if possible but make a new clone if
+    update fails. This is the default option and in particular
+    helpful if the failure happened because the repository URL or
+    credentials had changed.
+  * `"if_missing"`: Only clone if the repository has not been cloned
+    yet. This can be useful if the repository is very large and/or it
+    is unlikely that making a new clone will succeed when an update
+    fails.
 * `gitconfig`: Extra configuration for git when cloning or pulling
   local registries and packages. This is specified as a key/value
   mapping, e.g.

@@ -2,7 +2,7 @@
 
 function get_pkgserver_version()
     # Get PkgServer.jl's version and git sha
-    version = Pkg.TOML.parsefile(joinpath(@__DIR__, "..", "Project.toml"))["version"]
+    version = TOML.parsefile(joinpath(@__DIR__, "..", "Project.toml"))["version"]
     try
         repo = LibGit2.GitRepo(dirname(@__DIR__))
         gitsha = string(LibGit2.GitHash(LibGit2.GitCommit(repo, "HEAD")))

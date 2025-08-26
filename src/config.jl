@@ -1,4 +1,4 @@
-using Pkg
+using TOML
 
 abstract type StorageServer end
 
@@ -20,11 +20,12 @@ mutable struct Config
     cache_dir::String
     git_clones_dir::String
     min_time_between_registry_updates::Int
+    repository_clone_strategy::Symbol
     gitconfig::Dict{String, String}
 end
 
 function Config(filename::String)
-    return Config(Pkg.TOML.parsefile(filename))
+    return Config(TOML.parsefile(filename))
 end
 
 function Config(data::Dict)
@@ -37,7 +38,15 @@ function Config(data::Dict)
     pkg_server = get(data, "pkg_server", nothing)
     cache_dir = get(data, "cache_dir", nothing)
     git_clones_dir = get(data, "git_clones_dir", nothing)
-    t = get(data, "min_time_between_registry_updates", 60)
+    min_time = get(data, "min_time_between_registry_updates", 60)
+    s = get(data, "repository_clone_strategy", "on_failure")
+    strategies = ["always", "on_failure", "if_missing"]
+    if s in strategies
+        strategy = Symbol(s)
+    else
+        error("Unknown repository_clone_strategy: $s\n",
+              "Valid options are ", join(strategies, ", "), ".")
+    end
     gitconfig = get(data, "gitconfig", Dict{String, String}())
 
     storage_servers = Union{GitStorageServer, PkgStorageServer}[]
@@ -60,5 +69,5 @@ function Config(data::Dict)
     git_clones_dir = rstrip(git_clones_dir, ['/', '\\'])
 
     return Config(host, port, storage_servers, cache_dir, git_clones_dir,
-                  t, gitconfig)
+                  min_time, strategy, gitconfig)
 end

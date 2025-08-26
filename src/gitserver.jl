@@ -1,4 +1,4 @@
-using Pkg
+using TOML
 using CodecZlib
 
 function gitcmd(config, path)
@@ -20,20 +20,72 @@ function get_local_package_dir(config, uuid)
     return dir
 end
 
+function read_registry_toml(git, toml_path)
+    registry_toml = read(`$git cat-file blob @:$(toml_path)`, String)
+    return TOML.parse(registry_toml)
+end
+
 function get_registries(config, server::GitStorageServer)
     repo = server.url
     registry_dir = get_local_registry_dir(config)
-    git = gitcmd(config, registry_dir)
-    if !isdir(registry_dir)
-        mkpath(registry_dir)
-        run(`$git clone $(repo) .`)
-    else
-        run(`$git pull --quiet`)
+    if isdir(joinpath(registry_dir, ".git"))
+        # Upgrade from LocalPackageServer 0.1.x, which used a clone
+        # with workspace.
+        rm(registry_dir, recursive = true)
     end
-    registry = Pkg.TOML.parsefile(joinpath(registry_dir, "Registry.toml"))
+    clone_or_update_repository(config, registry_dir, repo)
+    git = gitcmd(config, registry_dir)
+    registry = read_registry_toml(git, "Registry.toml")
     server.uuid = registry["uuid"]
     hash = readchomp(`$git rev-parse --verify HEAD:`)
     return Dict(registry["uuid"] => hash)
+end
+
+function clone_repository(git, repo, path)
+    rm(path, recursive = true, force = true)
+    @info "Cloning repository" repo=repo Dates.now()
+    mkpath(path)
+    try
+        run(`$git clone --mirror $(repo) $(path)`)
+    catch e
+        @error "Failed to clone $(repo)." error=e
+        rm(path, recursive = true, force = true)
+        rethrow(e)
+    end
+end
+
+# Clone or update a repository according to
+# config.repository_clone_strategy.
+function clone_or_update_repository(config, path, repo, hash = nothing)
+    clone_strategy = config.repository_clone_strategy
+    git = gitcmd(config, path)
+    if clone_strategy == :always || !isdir(path)
+        clone_repository(git, repo, path)
+    else
+        # If hash is not available or no hash was provided, update git
+        # repo.
+        update_needed = false
+        if isnothing(hash)
+            update_needed = true
+        else
+            try
+                read(`$git rev-parse --verify --quiet $(hash)^\{tree\}`)
+            catch e
+                @info "Hash not available, updating from remote" repo=repo hash=hash Dates.now()
+                update_needed = true
+            end
+        end
+        if update_needed
+            try
+                run(`$git remote update`)
+            catch e
+                @error "Failed to update $(repo)." error = e
+                if clone_strategy == :on_failure
+                    clone_repository(git, repo, path)
+                end
+            end
+        end
+    end
 end
 
 function get_resource_from_storage_server!(config, server::GitStorageServer,
@@ -51,48 +103,31 @@ function get_resource_from_storage_server!(config, server::GitStorageServer,
         hash = parts[3]
         uuid != server.uuid && return false
     elseif parts[1] == "package"
+        registry_git = gitcmd(config, registry_dir)
         uuid = parts[2]
         hash = parts[3]
         # TODO: Cache Registry.toml in memory.
-        registry = Pkg.TOML.parsefile(joinpath(registry_dir, "Registry.toml"))
+        registry = read_registry_toml(registry_git, "Registry.toml")
         haskey(registry["packages"], uuid) || return false
-        package_dir = joinpath(registry_dir, registry["packages"][uuid]["path"])
-        package = Pkg.TOML.parsefile(joinpath(package_dir, "Package.toml"))
+        package_toml = registry["packages"][uuid]["path"] * "/" * "Package.toml"
+        package = read_registry_toml(registry_git, package_toml)
         repo = package["repo"]
         local_package_dir = get_local_package_dir(config, uuid)
+        clone_or_update_repository(config, local_package_dir, repo, hash)
         git = gitcmd(config, local_package_dir)
-        if !isdir(local_package_dir)
-            @info "Cloning package" repo=repo Dates.now()
-            mkpath(local_package_dir)
-            try
-                run(`$git clone --mirror $(repo) .`)
-            catch e
-                @info "Failed to clone $(repo)."
-                rm(local_package_dir, recursive = true)
-                rethrow(e)
-            end
-        else
-            # If hash is not available, update git repo.
-            try
-                run(`$git rev-parse --verify --quiet $(hash)^\{tree\}`)
-            catch
-                @info "Hash not available, updating from remote" repo=repo hash=hash Dates.now()
-                run(`$git remote update`)
-            end
-            # Still not there? Nothing to do about it.
-            try
-                run(`$git rev-parse --verify --quiet $(hash)^\{tree\}`)
-            catch
-                @error "Hash still not available after remote update" repo=repo hash=hash Dates.now()
-                close(io)
-                return false
-            end
-        end
     elseif parts[1] == "artifact"
         @info "No support for artifacts" Dates.now()
         return false
     else
         @info "Unknown resource $(parts[1])" Dates.now()
+        return false
+    end
+
+    try
+        read(`$git rev-parse --verify --quiet $(hash)^\{tree\}`)
+    catch
+        @error "Hash not available in repository" repo=repo hash=hash Dates.now()
+        close(io)
         return false
     end
 

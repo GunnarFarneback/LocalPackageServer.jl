@@ -9,11 +9,11 @@ See the package's `README.md` for more information.
 """
 module LocalPackageServer
 
-using Pkg
 using Dates
 using HTTP
 using Random
 using Tar
+import Downloads
 
 include("config.jl")
 include("resource.jl")

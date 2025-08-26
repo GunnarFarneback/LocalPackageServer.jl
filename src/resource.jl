@@ -224,15 +224,19 @@ function get_resource_from_storage_server!(config, server::PkgStorageServer,
     end
     content.length = content_length(response)
 
-    response = HTTP.get(server.url * resource,
-                        status_exception = false,
-                        response_stream = io)
-    close(io)
+    response = HTTP.head(server.url * resource,
+                         status_exception = false)
 
     if response.status != 200
         @warn "response status $(response.status)" Dates.now()
         return false
     end
+
+    # We want to use HTTP.get here but it is broken for redirects,
+    # which Julia's package servers use.
+    # Cf. https://github.com/JuliaWeb/HTTP.jl/issues/1165
+    Downloads.download(server.url * resource, io)
+    close(io)
 
     return true
 end

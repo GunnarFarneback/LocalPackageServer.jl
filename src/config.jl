@@ -21,6 +21,7 @@ mutable struct Config
     git_clones_dir::String
     min_time_between_registry_updates::Int
     repository_clone_strategy::Symbol
+    log_format::Symbol
     gitconfig::Dict{String, String}
 end
 
@@ -47,6 +48,14 @@ function Config(data::Dict)
         error("Unknown repository_clone_strategy: $s\n",
               "Valid options are ", join(strategies, ", "), ".")
     end
+    f = get(data, "log_format", "text")
+    log_formats = ["text", "json"]
+    if f in log_formats
+        log_format = Symbol(f)
+    else
+        error("Unknown log_format: $f\n",
+              "Valid options are ", join(log_formats, ", "), ".")
+    end
     gitconfig = get(data, "gitconfig", Dict{String, String}())
 
     storage_servers = Union{GitStorageServer, PkgStorageServer}[]
@@ -69,5 +78,5 @@ function Config(data::Dict)
     git_clones_dir = rstrip(git_clones_dir, ['/', '\\'])
 
     return Config(host, port, storage_servers, cache_dir, git_clones_dir,
-                  min_time, strategy, gitconfig)
+                  min_time, strategy, log_format, gitconfig)
 end

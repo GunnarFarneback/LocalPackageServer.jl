@@ -14,6 +14,8 @@ using HTTP
 using Random
 using Tar
 import Downloads
+using LoggingExtras: FormatLogger, global_logger
+import LoggingFormats
 
 include("config.jl")
 include("resource.jl")
@@ -25,11 +27,17 @@ function __init__()
     HTTP.setuseragent!("LocalPackageServer (HTTP.jl)")
 end
 
+function setup_json_logger()
+    global_logger(FormatLogger(LoggingFormats.JSON(; recursive=true)))
+end
+
 start(config) = start(Config(config))
 
 function start(config::Config)
     isempty(config.storage_servers) && throw(@error "No storage servers are configured." resource=resource)
 
+    # Configure JSON logs if requested (:text format requires no config)
+    config.log_format == :json && setup_json_logger()
     host = config.host
     port = config.port
     mkpath(config.cache_dir)

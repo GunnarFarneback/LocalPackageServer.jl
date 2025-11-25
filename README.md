@@ -113,6 +113,9 @@ your local registry is done as above after you have pointed
     yet. This can be useful if the repository is very large and/or it
     is unlikely that making a new clone will succeed when an update
     fails.
+* `log_format`: Format for log entries. Options:
+  * `text`: Default Julia log entries.
+  * `json`: JSON-formatted logs.
 * `gitconfig`: Extra configuration for git when cloning or pulling
   local registries and packages. This is specified as a key/value
   mapping, e.g.

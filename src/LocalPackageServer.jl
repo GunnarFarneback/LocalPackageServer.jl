@@ -14,7 +14,7 @@ using HTTP
 using Random
 using Tar
 import Downloads
-using LoggingExtras: FormatLogger, global_logger
+using LoggingExtras: FormatLogger, MinLevelLogger, Info, global_logger
 import LoggingFormats
 
 include("config.jl")
@@ -28,7 +28,8 @@ function __init__()
 end
 
 function setup_json_logger()
-    global_logger(FormatLogger(LoggingFormats.JSON(; recursive=true)))
+    l = MinLevelLogger(FormatLogger(LoggingFormats.JSON(; recursive=true, nest_kwargs=false)), Info)
+    global_logger(l)
 end
 
 start(config) = start(Config(config))

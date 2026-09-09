@@ -130,7 +130,7 @@ function get_resource_from_storage_server!(config, server::GitStorageServer,
         read(`$git rev-parse --verify --quiet $(hash)^\{tree\}`)
     catch
         @error "Hash not available in repository" repo=repo hash=hash Dates.now()
-        close(io)
+        # Leave `io` open, in case a subsequent `StorageServer` has the desired treehash
         return false
     end
 

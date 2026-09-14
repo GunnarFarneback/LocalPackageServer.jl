@@ -152,7 +152,7 @@ function cached_fetch_resource(config::Config, resource::AbstractString)
                 try
                     success = fetch_resource(config, resource, io, content)
                 catch e
-                    @info "fetch resource errored" error=e backtrace=stacktrace(catch_backtrace())
+                    @info "fetch resource errored" exception=(e, catch_backtrace())
                 end
                 close(io)
                 # Note: This lock call is not nested within the outer

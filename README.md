@@ -1,9 +1,9 @@
 # LocalPackageServer
 
-Implementation of a Julia Storage Server for a single registry, where
-the registry and the registered packages are dynamically retrieved
-from their git repositories. For creation of a registry, see the
-companion package
+Implementation of a Julia Storage Server for one or more registries,
+where the registries and the registered packages are dynamically
+retrieved from their git repositories. For creation of a registry, see
+the companion package
 [LocalRegistry](https://github.com/GunnarFarneback/LocalRegistry.jl).
 
 This package is a simplified fork of the
@@ -44,6 +44,25 @@ Replace `REGISTRY_URL` with the URL to your local registry (the same
 that you would use in a `registry add` command). If you want to use
 the package server from other computers you need to replace
 `localhost` with a public address.
+
+To serve more than one local registry, replace `local_registry` with a
+`local_registries` table, mapping the UUID of each registry to the URL
+it can be cloned from:
+```
+host = "127.0.0.1"
+port = "8000"
+pkg_server = "https://pkg.julialang.org"
+cache_dir = "/tmp/cache"
+git_clones_dir = "/tmp/data"
+min_time_between_registry_updates = 60
+repository_clone_strategy = "on_failure"
+
+[local_registries]
+11111111-1111-1111-1111-111111111111 = "REGISTRY_URL_1"
+22222222-2222-2222-2222-222222222222 = "REGISTRY_URL_2"
+```
+Note: In TOML, the top-level table ends at the first table header, so
+every top-level setting has to come before `[local_registries]`.
 
 ### Using the Package Server
 
@@ -91,12 +110,15 @@ your local registry is done as above after you have pointed
 * `host`: The host name the server will listen to.
 * `port`: The port number the server will listen to.
 * `local_registry`: URL from which your local registry can be cloned.
+* `local_registries`: A table (dict) of multiple registries, where keys
+  are registry UUIDs, and values are registry URLs. You cannot specify
+  both `local_registry` and `local_registries`.
 * `pkg_server`: The package server to forward requests for non-local
   packages to.
 * `cache_dir`: A directory where package and registry revisions will
   be stored. This cache is used for both local and non-local
   packages and registries.
-* `git_clones_dir`: A directory where clones of your local registry
+* `git_clones_dir`: A directory where clones of your local registries
   and local packages will be stored.
 * `min_time_between_registry_updates`: Minimum time in seconds before
   checking registries for updates. Updates are only triggered when

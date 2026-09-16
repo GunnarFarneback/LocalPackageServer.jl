@@ -10,8 +10,8 @@ function gitcmd(config, path)
     return Cmd(cmd)
 end
 
-function get_local_registry_dir(config)
-    dir = joinpath(config.git_clones_dir, "registry")
+function get_local_registry_dir(config::Config, server::GitStorageServer)
+    dir = joinpath(config.git_clones_dir, server.registry_dir)
     return dir
 end
 
@@ -27,7 +27,7 @@ end
 
 function get_registries(config, server::GitStorageServer)
     repo = server.url
-    registry_dir = get_local_registry_dir(config)
+    registry_dir = get_local_registry_dir(config, server)
     if isdir(joinpath(registry_dir, ".git"))
         # Upgrade from LocalPackageServer 0.1.x, which used a clone
         # with workspace.
@@ -36,7 +36,19 @@ function get_registries(config, server::GitStorageServer)
     clone_or_update_repository(config, registry_dir, repo)
     git = gitcmd(config, registry_dir)
     registry = read_registry_toml(git, "Registry.toml")
-    server.uuid = registry["uuid"]
+    if isempty(server.uuid)
+        # In the legacy format (single `local_registry`), the UUID is not
+        # provided in the config file, so fill it in from the registry.
+        server.uuid = registry["uuid"]
+    elseif server.uuid != registry["uuid"]
+        # In the new format (`local_registries` table), the UUID is provided
+        # in the config file, so check that the registry agrees.
+        error(
+            "The registry at ", server.url,
+            " has UUID ", registry["uuid"],
+            ", but the config file provided UUID ", server.uuid,
+        )
+    end
     hash = readchomp(`$git rev-parse --verify HEAD:`)
     return Dict(registry["uuid"] => hash)
 end
@@ -98,7 +110,7 @@ function get_resource_from_storage_server!(config, server::GitStorageServer,
     get_registries(config, server)
 
     parts = split(resource, "/", keepempty = false)
-    registry_dir = get_local_registry_dir(config)
+    registry_dir = get_local_registry_dir(config, server)
     if parts[1] == "registry"
         git = gitcmd(config, registry_dir)
         repo = server.url

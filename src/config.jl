@@ -9,9 +9,35 @@ end
 mutable struct GitStorageServer <: StorageServer
     url::String
     uuid::String
+    registry_dir::String
 end
 
-GitStorageServer(url) = GitStorageServer(url, "")
+# Legacy format: single `local_registry`
+GitStorageServer(url) = GitStorageServer(url, "", "registry")
+
+# New format: `local_registries` table
+GitStorageServer(url, uuid) = GitStorageServer(url, uuid, joinpath("registries", uuid))
+
+function registry_url(url::AbstractString)
+    url = convert(String, strip(url))::String
+    if isempty(url)
+        error("Registry URL must not be empty.")
+    end
+    return url
+end
+
+# `local_registries` maps registry UUID to registry URL
+function registry_table(local_registries::AbstractDict)
+    registries = Dict{String, String}()
+    for (uuid, url) in local_registries
+        uuid = convert(String, strip(uuid))::String
+        if !occursin(Regex("^$(uuid_re)\$"), uuid)
+            error("Invalid registry UUID in `local_registries`: ", repr(uuid))
+        end
+        registries[uuid] = registry_url(url)
+    end
+    return registries
+end
 
 mutable struct Config
     host::String
@@ -36,6 +62,10 @@ function Config(data::Dict)
         port = parse(Int, port)
     end
     local_registry = get(data, "local_registry", nothing)
+    local_registries = get(data, "local_registries", nothing)
+    if !isnothing(local_registry) && !isnothing(local_registries)
+        error("Only one of `local_registry` and `local_registries` can be specified.")
+    end
     pkg_server = get(data, "pkg_server", nothing)
     cache_dir = get(data, "cache_dir", nothing)
     git_clones_dir = get(data, "git_clones_dir", nothing)
@@ -60,7 +90,15 @@ function Config(data::Dict)
 
     storage_servers = Union{GitStorageServer, PkgStorageServer}[]
     if !isnothing(local_registry)
-        push!(storage_servers, GitStorageServer(local_registry))
+        # Legacy format: single `local_registry`
+        push!(storage_servers, GitStorageServer(registry_url(local_registry)))
+    end
+    if !isnothing(local_registries)
+        # New format: `local_registries` table
+        registries = registry_table(local_registries)
+        for uuid in sort!(collect(keys(registries)))
+            push!(storage_servers, GitStorageServer(registries[uuid], uuid))
+        end
     end
     if !isnothing(pkg_server)
         push!(storage_servers, PkgStorageServer(pkg_server))
